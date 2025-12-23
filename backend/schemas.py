@@ -11,3 +11,13 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     messages: List[Message]
+
+class UpdateGoalsRequest(BaseModel):
+    goals: str
+
+class UpdateKnowledgeRequest(BaseModel):
+    category: str
+    content: str
+
+class UpdateDescriptionRequest(BaseModel):
+    description: str

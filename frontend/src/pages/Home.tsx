@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, User, Bot, Loader2, RefreshCw, Terminal, ChevronDown, ChevronRight, Activity, BookOpen, Globe, Menu, Plus, MessageSquare, X } from "lucide-react";
+import { Send, User, Bot, Loader2, RefreshCw, Terminal, ChevronDown, ChevronRight, Activity, BookOpen, Globe, Menu, Plus, MessageSquare, X, Target, Brain, Trash2, Edit2, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -20,6 +20,12 @@ interface Thread {
   id: string;
   title: string;
   updated_at: string;
+}
+
+interface UserProfile {
+  learning_goals: string;
+  self_description: string;
+  knowledge: Record<string, string>;
 }
 
 const DetailPanel = ({ title, content, icon: Icon, colorClass }: { title: string, content: string, icon: any, colorClass: string }) => {
@@ -51,12 +57,110 @@ const DetailPanel = ({ title, content, icon: Icon, colorClass }: { title: string
   );
 };
 
+const EditableSection = ({ 
+    title, 
+    content, 
+    icon: Icon, 
+    onSave, 
+    isMarkdown = true 
+}: { 
+    title: string, 
+    content: string, 
+    icon: any, 
+    onSave: (newContent: string) => Promise<void>,
+    isMarkdown?: boolean
+}) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [value, setValue] = useState(content);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        setValue(content);
+    }, [content]);
+
+    const handleSave = async () => {
+        if (value === content) {
+            setIsEditing(false);
+            return;
+        }
+        setIsSaving(true);
+        try {
+            await onSave(value);
+            setIsEditing(false);
+        } catch (e) {
+            console.error("Failed to save", e);
+            alert("Failed to save changes.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-800">
+            <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                    <Icon size={16} />
+                    {title}
+                </h4>
+                {!isEditing ? (
+                    <button 
+                        onClick={() => setIsEditing(true)}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                        title="Edit"
+                    >
+                        <Edit2 size={14} />
+                    </button>
+                ) : (
+                    <div className="flex gap-1">
+                        <button 
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
+                            title="Save"
+                        >
+                            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        </button>
+                        <button 
+                            onClick={() => {
+                                setIsEditing(false);
+                                setValue(content);
+                            }}
+                            disabled={isSaving}
+                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                            title="Cancel"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                )}
+            </div>
+            <div className="p-4">
+                {isEditing ? (
+                    <textarea 
+                        value={value}
+                        onChange={(e) => setValue(e.target.value)}
+                        className="w-full h-48 p-3 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none resize-none font-mono"
+                    />
+                ) : (
+                    <div className="prose prose-sm max-w-none dark:prose-invert">
+                        {isMarkdown ? (
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                        ) : (
+                            <p className="whitespace-pre-wrap">{content}</p>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const ChatMessage = ({ message }: { message: Message }) => {
   const isUser = message.role === "user";
 
   return (
     <div className={`flex w-full mb-6 ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`flex max-w-[85%] md:max-w-[75%] ${isUser ? "flex-row-reverse" : "flex-col"} gap-3`}>
+      <div className={`flex max-w-[85%] ${isUser ? "flex-row-reverse" : "flex-col"} gap-3`}>
         <div className={`flex ${isUser ? "flex-row-reverse" : "flex-row"} gap-3`}>
         {/* Avatar */}
         <div
@@ -178,6 +282,8 @@ export default function Home() {
   const [threadId, setThreadId] = useState("");
   const [threads, setThreads] = useState<Thread[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(true); // Default open for bold change
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -191,6 +297,27 @@ export default function Home() {
       } catch (e) {
           console.error("Failed to fetch threads", e);
       }
+  };
+
+  const fetchProfile = async () => {
+    try {
+        const res = await fetch("http://localhost:8000/chat/profile");
+        const data = await res.json();
+        setUserProfile(data);
+    } catch (e) {
+        console.error("Failed to fetch profile", e);
+    }
+  };
+
+  const clearProfile = async () => {
+    if (!confirm("Are you sure you want to clear your knowledge profile? This action cannot be undone.")) return;
+    
+    try {
+        await fetch("http://localhost:8000/chat/profile", { method: "DELETE" });
+        await fetchProfile();
+    } catch (e) {
+        console.error("Failed to clear profile", e);
+    }
   };
 
   const loadThreadHistory = async (id: string) => {
@@ -208,6 +335,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchThreads();
+    fetchProfile();
     
     // Initialize or retrieve thread_id from localStorage
     let storedThreadId = localStorage.getItem("watson_thread_id");
@@ -218,6 +346,78 @@ export default function Home() {
     setThreadId(storedThreadId);
     loadThreadHistory(storedThreadId);
   }, []);
+
+  const deleteThread = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this chat history?")) return;
+
+    try {
+        const res = await fetch(`http://localhost:8000/chat/threads/${id}`, { method: "DELETE" });
+        if (res.ok) {
+            // Remove from local state
+            setThreads(prev => prev.filter(t => t.id !== id));
+            // If deleting current thread, start a new one
+            if (id === threadId) {
+                startNewChat();
+            }
+        }
+    } catch (e) {
+        console.error("Failed to delete thread", e);
+    }
+  };
+
+  const clearAllThreads = async () => {
+    if (!confirm("Are you sure you want to delete ALL chat history? This action cannot be undone.")) return;
+
+    try {
+        const res = await fetch("http://localhost:8000/chat/threads", { method: "DELETE" });
+        if (res.ok) {
+            setThreads([]);
+            startNewChat();
+        }
+    } catch (e) {
+        console.error("Failed to delete all threads", e);
+    }
+  };
+
+  const handleUpdateGoals = async (newGoals: string) => {
+    await fetch("http://localhost:8000/chat/profile/goals", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goals: newGoals })
+    });
+    // Optimistic update or refetch
+    setUserProfile(prev => prev ? { ...prev, learning_goals: newGoals } : null);
+  };
+
+  const handleUpdateDescription = async (newDescription: string) => {
+    await fetch("http://localhost:8000/chat/profile/description", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: newDescription })
+    });
+    // Optimistic update
+    setUserProfile(prev => prev ? { ...prev, self_description: newDescription } : null);
+  };
+
+  const handleUpdateKnowledge = async (category: string, newContent: string) => {
+    await fetch("http://localhost:8000/chat/profile/knowledge", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, content: newContent })
+    });
+    // Optimistic update
+    setUserProfile(prev => {
+        if (!prev) return null;
+        return {
+            ...prev,
+            knowledge: {
+                ...prev.knowledge,
+                [category]: newContent
+            }
+        };
+    });
+  };
 
   const handleThreadSelect = (id: string) => {
       setThreadId(id);
@@ -281,6 +481,8 @@ export default function Home() {
         if (done) {
             // Refresh threads to get the updated title
             fetchThreads();
+            // Refresh profile as mentor might have updated it
+            fetchProfile();
             break;
         }
 
@@ -421,29 +623,47 @@ export default function Home() {
                 <button
                     key={thread.id}
                     onClick={() => handleThreadSelect(thread.id)}
-                    className={`w-full text-left p-3 rounded-lg text-sm flex items-center gap-3 transition-colors ${
+                    className={`w-full text-left p-3 rounded-lg text-sm flex items-center gap-3 transition-colors group relative ${
                         thread.id === threadId 
                             ? "bg-slate-100 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-medium" 
                             : "hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300"
                     }`}
                 >
                     <MessageSquare size={16} />
-                    <span className="truncate flex-1">
+                    <span className="truncate flex-1 pr-6">
                         {thread.title}
+                    </span>
+                    <span 
+                        onClick={(e) => deleteThread(thread.id, e)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-all"
+                        title="Delete Chat"
+                    >
+                        <Trash2 size={14} />
                     </span>
                 </button>
             ))}
         </div>
         
-        <div className="p-4 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-400 text-center">
-            v1.0.0
+        <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+            {threads.length > 0 && (
+                <button
+                    onClick={clearAllThreads}
+                    className="w-full flex items-center justify-center gap-2 p-2 text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors mb-2"
+                >
+                    <Trash2 size={14} />
+                    Delete All History
+                </button>
+            )}
+            <div className="text-xs text-slate-400 text-center">
+                v1.0.0
+            </div>
         </div>
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-full min-w-0">
         {/* Header */}
-        <header className="bg-white dark:bg-slate-800 shadow-sm border-b border-slate-200 dark:border-slate-700 p-4 sticky top-0 z-10 flex items-center justify-between">
+        <header className="bg-white dark:bg-slate-800 shadow-sm border-b border-slate-200 dark:border-slate-700 p-4 sticky top-0 z-10 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <button 
                 onClick={() => setIsSidebarOpen(true)}
@@ -458,77 +678,168 @@ export default function Home() {
               <p className="text-xs text-slate-500 dark:text-slate-400">Your AI Technical Coach</p>
             </div>
           </div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
-            title="Reset Session"
-          >
-            <RefreshCw size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors hidden md:block"
+                title="Toggle Knowledge Profile"
+              >
+                <BookOpen size={20} className={isProfileOpen ? "text-indigo-600" : ""} />
+              </button>
+              <button 
+                onClick={() => window.location.reload()}
+                className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+                title="Reset Session"
+              >
+                <RefreshCw size={20} />
+              </button>
+          </div>
         </header>
 
-        {/* Messages */}
+        <div className="flex-1 flex overflow-hidden">
+            {/* Messages */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 scroll-smooth">
-            <div className="max-w-5xl mx-auto">
+            <div className="max-w-5xl mx-auto xl:mx-0 xl:w-full xl:max-w-none px-4 sm:px-6">
               {messages.length === 0 && (
-                <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in">
-                  <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-4">
-                    <Bot className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                  <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">
-                    Ready to learn?
-                  </h2>
-                  <p className="text-slate-600 dark:text-slate-400 max-w-md text-lg">
-                    I can help you review algorithms, system design, or specific language concepts.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg mt-8">
-                    {[
-                      "Review Python Memory Management",
-                      "Explain ACID properties",
-                      "Design a URL Shortener",
-                      "Practice: Arrays & Strings"
-                    ].map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        onClick={() => {
-                          setInput(suggestion);
-                        }}
-                        className="p-3 text-sm text-left bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-indigo-500 hover:shadow-md transition-all duration-200 text-slate-700 dark:text-slate-300"
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {messages.map((msg, index) => (
-                <ChatMessage key={index} message={msg} />
-              ))}
-              
-              {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
-                <div className="flex justify-start mb-6 animate-pulse">
-                   <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center">
-                        <Bot size={20} className="text-white" />
+                    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in">
+                      <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-4">
+                        <Bot className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
                       </div>
-                      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl rounded-tl-none border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+                        Ready to learn?
+                      </h2>
+                      <p className="text-slate-600 dark:text-slate-400 max-w-md text-lg">
+                        I can help you review algorithms, system design, or specific language concepts.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg mt-8">
+                        {[
+                          "Review Python Memory Management",
+                          "Explain ACID properties",
+                          "Design a URL Shortener",
+                          "Practice: Arrays & Strings"
+                        ].map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            onClick={() => {
+                              setInput(suggestion);
+                            }}
+                            className="p-3 text-sm text-left bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-indigo-500 hover:shadow-md transition-all duration-200 text-slate-700 dark:text-slate-300"
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {messages.map((msg, index) => (
+                    <ChatMessage key={index} message={msg} />
+                  ))}
+                  
+                  {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
+                    <div className="flex justify-start mb-6 animate-pulse">
+                      <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center">
+                            <Bot size={20} className="text-white" />
+                          </div>
+                          <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl rounded-tl-none border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                            </div>
+                          </div>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} className="h-4" />
+                </div>
+            </main>
+
+            {/* Right Sidebar - Knowledge Profile */}
+            {isProfileOpen && userProfile && (
+                <aside className="w-[600px] bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 overflow-y-auto hidden xl:flex flex-col animate-slide-in-right shrink-0">
+                    <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                        <div>
+                            <h3 className="font-bold text-xl flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                                <Brain className="w-5 h-5 text-purple-600" />
+                                Knowledge Profile
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">AI-generated assessment of your skills</p>
                         </div>
-                      </div>
-                   </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} className="h-4" />
-            </div>
-        </main>
+                        <button
+                            onClick={clearProfile}
+                            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-2 text-xs font-medium"
+                            title="Clear Knowledge Profile"
+                        >
+                            <Trash2 size={16} />
+                            Clear
+                        </button>
+                    </div>
+                    
+                    <div className="p-6 space-y-8">
+                        {/* User Description */}
+                        <div>
+                            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <User size={16} />
+                                About Me
+                            </h4>
+                            <EditableSection
+                                title="Self Description"
+                                content={userProfile.self_description || "No description provided."}
+                                icon={User}
+                                onSave={handleUpdateDescription}
+                                isMarkdown={false}
+                            />
+                        </div>
+
+                        {/* Learning Goals */}
+                        <div>
+                            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <Target size={16} />
+                                Learning Goals
+                            </h4>
+                            <EditableSection
+                                title="Current Goals"
+                                content={userProfile.learning_goals}
+                                icon={Target}
+                                onSave={handleUpdateGoals}
+                                isMarkdown={false}
+                            />
+                        </div>
+
+                        {/* Knowledge Categories */}
+                        <div>
+                            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <BookOpen size={16} />
+                                Skill Breakdown
+                            </h4>
+                            <div className="space-y-4">
+                                {Object.entries(userProfile.knowledge).length > 0 ? (
+                                    Object.entries(userProfile.knowledge).map(([category, content]) => (
+                                        <EditableSection
+                                            key={category}
+                                            title={category}
+                                            content={content}
+                                            icon={BookOpen}
+                                            onSave={(newContent) => handleUpdateKnowledge(category, newContent)}
+                                        />
+                                    ))
+                                ) : (
+                                    <div className="text-center p-4 text-slate-400 text-sm italic border border-dashed border-slate-300 rounded-lg">
+                                        No skills recorded yet. Start chatting!
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            )}
+        </div>
 
         {/* Footer Input */}
-        <footer className="bg-white dark:bg-slate-800 p-4 border-t border-slate-200 dark:border-slate-700">
-            <div className="max-w-5xl mx-auto">
+        <footer className="bg-white dark:bg-slate-800 p-4 border-t border-slate-200 dark:border-slate-700 shrink-0">
+            <div className="max-w-5xl mx-auto xl:mx-0 xl:w-full xl:max-w-none px-4 sm:px-6">
               <div className="relative flex items-end gap-2 bg-slate-100 dark:bg-slate-900 p-2 rounded-2xl border border-transparent focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
                 <textarea
                   ref={inputRef}

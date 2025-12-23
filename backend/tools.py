@@ -12,6 +12,8 @@ def web_search(query: str) -> str:
     Perform a web search using Bocha API to get up-to-date information.
     Useful for answering questions about current events, specific technical details, or finding learning resources.
     
+    If you need the latest information, please include the current year or date in your query (e.g., 'Python 3.12 features 2024').
+    
     Args:
         query: The search query string.
     """

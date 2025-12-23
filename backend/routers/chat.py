@@ -2,11 +2,70 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import json
 import uuid
-from agent import get_graph, get_all_threads, summarize_thread
-from schemas import ChatRequest, ChatResponse
+from agent import get_graph, get_all_threads, summarize_thread, delete_thread, delete_all_threads
+from profile import get_user_profile, clear_user_profile, set_learning_goals, set_knowledge_category, set_self_description
+from schemas import ChatRequest, ChatResponse, UpdateGoalsRequest, UpdateKnowledgeRequest, UpdateDescriptionRequest
 from utils import map_to_langchain_messages, map_from_langchain_messages
 
 router = APIRouter()
+
+@router.put("/profile/description")
+async def update_description(request: UpdateDescriptionRequest):
+    try:
+        await set_self_description(request.description)
+        return {"message": "Self description updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/profile/goals")
+async def update_goals(request: UpdateGoalsRequest):
+    try:
+        await set_learning_goals(request.goals)
+        return {"message": "Learning goals updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/profile/knowledge")
+async def update_knowledge(request: UpdateKnowledgeRequest):
+    try:
+        await set_knowledge_category(request.category, request.content)
+        return {"message": "Knowledge category updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/threads")
+async def remove_all_threads():
+    try:
+        await delete_all_threads()
+        return {"message": "All threads deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/threads/{thread_id}")
+async def remove_thread(thread_id: str):
+    try:
+        success = await delete_thread(thread_id)
+        if not success:
+             raise HTTPException(status_code=404, detail="Thread not found")
+        return {"message": "Thread deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/profile")
+async def delete_profile():
+    try:
+        result = await clear_user_profile()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/profile")
+async def get_profile():
+    try:
+        profile = await get_user_profile()
+        return profile
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/threads")
 async def get_threads():
