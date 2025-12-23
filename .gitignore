@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project specific
+checkpoints.db
+checkpoints.db-shm
+checkpoints.db-wal
+test.db
+.vercel
+node_modules
+
