@@ -142,3 +142,18 @@ async def update_learning_goals(goals: str) -> str:
         return "Successfully updated learning goals."
     except Exception as e:
         return f"Error updating learning goals: {str(e)}"
+
+@tool
+async def update_self_description(description: str) -> str:
+    """
+    Update the user's self-description.
+    This includes their background, learning style, preferences, personality traits, and any other relevant context.
+    
+    Args:
+        description: A text description of the user.
+    """
+    try:
+        await set_self_description(description)
+        return "Successfully updated self description."
+    except Exception as e:
+        return f"Error updating self description: {str(e)}"

@@ -5,9 +5,9 @@ from datetime import datetime
 from state import State
 from llm import llm, COACH_DRAFT_PROMPT, CRITIC_REFLECTION_PROMPT, COACH_FINAL_PROMPT, MENTOR_PROMPT
 from tools import web_search
-from profile import get_user_profile, update_knowledge_category, update_learning_goals
+from profile import get_user_profile, update_knowledge_category, update_learning_goals, update_self_description
 
-tools = [web_search, update_knowledge_category, update_learning_goals]
+tools = [web_search, update_knowledge_category, update_learning_goals, update_self_description]
 tool_map = {t.name: t for t in tools}
 
 # --- Helper for Tool Loop ---
@@ -141,21 +141,11 @@ async def generate_final(state: State, config: RunnableConfig):
     else:
         instruction = f"The critic provided this feedback: {feedback}. Please revise the draft to address it."
 
-    final_prompt = f"""你是“Watson”，一位友好且乐于助人的技术学习助手。
-
-你之前生成的回复草稿收到了一些反馈意见。
-{instruction}
-
-草稿内容：
-{draft}
-
-当前用户画像：
-{profile_str}
-
-请生成最终的回复。
-保持温暖、鼓励的语气。
-**必须全程使用中文。**
-"""
+    final_prompt = COACH_FINAL_PROMPT.format(
+        instruction=instruction,
+        draft=draft,
+        profile_str=profile_str
+    )
     
     config["tags"] = ["coach"]
     response = await llm.ainvoke([SystemMessage(content=final_prompt)] + messages, config)

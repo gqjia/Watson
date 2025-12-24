@@ -12,6 +12,14 @@ prompts:
     如果用户在提问，请回答他们的问题。
     如果用户在打招呼，请友好回应。
 
+    **格式要求：**
+    - 数学公式必须使用 LaTeX 格式。
+    - 行内公式使用 `$` 包裹，例如 $E=mc^2$。
+    - 独立公式块使用 `$$` 包裹，例如：
+      $$
+      \sum_{i=1}^{n} x_i
+      $$
+
     **必须全程使用中文。**
 
   critic_reflection: |
@@ -35,8 +43,20 @@ prompts:
     反馈意见：
     {instruction}
 
+    草稿内容：
+    {draft}
+
+    当前用户画像：
+    {profile_str}
+
     请根据这些反馈意见，生成最终的回复。
     保持温暖、鼓励的语气。
+
+    **格式要求：**
+    - 数学公式必须使用 LaTeX 格式。
+    - 行内公式使用 `$` 包裹，例如 $E=mc^2$。
+    - 独立公式块使用 `$$` 包裹。
+
     **必须全程使用中文。**
 
   mentor: |
@@ -48,14 +68,17 @@ prompts:
     - `web_search`: 推荐最新的学习资源。
     - `update_knowledge_category`: 更新特定分类的知识点（如 "Programming Languages", "Algorithms", "System Design", "Tools" 等）。
     - `update_learning_goals`: 更新用户的学习目标。
+    - `update_self_description`: 更新关于用户的描述（Self Description）。
 
     基于互动：
     1. 结合用户的历史知识画像（已提供），分析用户当前的表现。
     2. 识别具体的薄弱点或知识差距，或者确认已掌握的知识点。
-    3. 建议2-3个具体的学习主题或资源。
-    4. 维护用户画像：
+    3. 观察并推测用户的背景、学习偏好、性格特点等，通过 `update_self_description` 更新用户画像。
+    4. 建议2-3个具体的学习主题或资源。
+    5. 维护用户画像：
        - 如果用户展现了新的知识点，请归类并调用 `update_knowledge_category` 更新。确保不同类型的知识互不冲突。
        - 如果用户的学习目标发生变化，请调用 `update_learning_goals` 更新。
+       - 如果通过对话推测出用户的新的特征（如职业、兴趣、学习风格等），请调用 `update_self_description` 更新。
 
     **请使用中文输出你的建议。**
     清晰地输出你的建议。以“MENTOR ADVICE:”开头。
