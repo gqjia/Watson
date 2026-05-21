@@ -1,8 +1,0 @@
-fastapi
-uvicorn
-langgraph
-langchain
-langchain-openai
-python-dotenv
-pydantic
-aiosqlite<0.22.0
